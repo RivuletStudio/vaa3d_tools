@@ -15,6 +15,10 @@
 #include "utils/marker_radius.h"
 #include "utils/rk4.h"
 
+// Include from ITK
+#include "ITK_include/itkImage.h"
+#include "itkFastMarchingImageFilter.h"
+
 #define max2(a,b) \
  ({ __typeof__ (a) _a = (a); \
      __typeof__ (b) _b = (b); \
@@ -427,6 +431,7 @@ class R2Tracer {
   const static float target_coverage = 0.98;
 
   void prep();  // Distance Transform and MSFM
+  void fast_marching(Image3<double>* dt); // Fast-marching with itk
   Image3<double>* makespeed(Image3<float> *dt);
   SWC *iterative_backtrack();
   void make_gradient();

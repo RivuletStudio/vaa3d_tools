@@ -1,12 +1,31 @@
 
 TEMPLATE	= lib
 CONFIG	+= qt plugin warn_off
-#CONFIG	+= x86_64
+
+mac{
+    QMAKE_MACOSX_DEPLOYMENT_TARGET = 10.9
+    ITKLIBPATH = ITKlibs_MAC
+}
+else{
+    ITKLIBPATH = ITKlibs_Linux
+    SOURCES = ITK_include/itkLightProcessObject.cxx
+}
 
 VAA3DPATH = ../../../../v3d_external
 INCLUDEPATH	+= $$VAA3DPATH/v3d_main/basic_c_fun
 INCLUDEPATH	+= $$VAA3DPATH/v3d_main/common_lib/include
+
+# ITK Include
+INCLUDEPATH     += ITK_include
+
+# Link Vaa3d
 LIBS += -L$$VAA3DPATH/v3d_main/jba/c++ -lv3dnewmat
+LIBS         += -lm -L$$VAA3DPATH/v3d_main/common_lib/lib -lv3dtiff
+LIBS         += -lpthread
+LIBS         += -lv3dfftw3f -lv3dfftw3f_threads
+
+# Link ITK
+LIBS += -L$$ITKLIBPATH -litksys-4.5 -lITKCommon-4.5 -lITKStatistics-4.5 -lITKIOImageBase-4.5 -litkdouble-conversion-4.5
 
 # From V3D Main
 SOURCES += $$VAA3DPATH/v3d_main/basic_c_fun/basic_memory.cpp
@@ -40,9 +59,7 @@ SOURCES += fastmarching/common.c
 HEADERS += fastmarching/my_surf_objs.h
 SOURCES += fastmarching/my_surf_objs.cpp
 
-LIBS         += -lm -L$$VAA3DPATH/v3d_main/common_lib/lib -lv3dtiff
-LIBS         += -lpthread
-LIBS         += -lv3dfftw3f -lv3dfftw3f_threads
+
 
 TARGET	= $$qtLibraryTarget(Rivulet)
 DESTDIR	= $$VAA3DPATH/bin/plugins/neuron_tracing/Rivulet/

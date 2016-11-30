@@ -609,3 +609,10 @@ SWC *R2Tracer::iterative_backtrack() {
 
   return swc;
 }
+
+void R2Tracer::fast_marching(Image3<double>* dt){
+  typedef double PixelType;
+  typedef itk::Image< PixelType, 2 > ImageType;
+  typedef itk::FastMarchingImageFilter<ImageType, ImageType>  FastMarchingFilterType; 
+  FastMarchingFilterType::Pointer fastMarching = FastMarchingFilterType::New();
+}
