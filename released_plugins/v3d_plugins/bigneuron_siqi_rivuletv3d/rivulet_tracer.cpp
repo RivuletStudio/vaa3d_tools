@@ -1,6 +1,11 @@
 #include "rivulet.h"
 using namespace rivulet;
 
+//Include from ITK
+#include "itkImage.h"
+#include "itkFastMarchingImageFilter.h"
+#include "itkImageFileWriter.h"
+#include "itkCastImageFilter.h"
 
 void Branch::add(Point<float> pt, float conf, float radius = 1.0) {
   this->pts.push_back(pt);
@@ -336,15 +341,18 @@ void R2Tracer::prep() {
   // Marching on the Speed Image
   int *sp = this->soma->centroid.toint().make_array();
 
-  if (!this->silent) {
-    cout << "== MSFM..." << endl;
+
+  if (this->use_msfm){
+    if (!this->silent) cout << "== Fastmarching with MSFM ..."<<endl;; 
+    double *t_ptr = msfm(speed->get_data1d_ptr(), dims, sp, false, false,
+                         false); // Original Timemap
+
+    this->t = new Image3<double>(t_ptr, this->bimg->get_dims());
+    this->tt = this->t->make_copy();
+  } else {
+    if (!this->silent) cout << "== Fastmarching with ITK..." << endl; 
+    this->fast_marching(speed, soma->centroid.tolong());  
   }
-
-  double *t_ptr = msfm(speed->get_data1d_ptr(), dims, sp, false, false,
-                       false); // Original Timemap
-
-  this->t = new Image3<double>(t_ptr, this->bimg->get_dims());
-  this->tt = this->t->make_copy();
 
   // Get the gradient of the Time-crossing map
   cout <<  "== Making Gradients of Time map" << endl;
@@ -610,9 +618,49 @@ SWC *R2Tracer::iterative_backtrack() {
   return swc;
 }
 
-void R2Tracer::fast_marching(Image3<double>* dt){
+void R2Tracer::fast_marching(Image3<double>* speed, Point<long> srcpt){
   typedef double PixelType;
-  typedef itk::Image< PixelType, 2 > ImageType;
+  typedef itk::Image< PixelType, 3 > ImageType;
+  typedef ImageType::PixelContainer PixelContainerType;
   typedef itk::FastMarchingImageFilter<ImageType, ImageType>  FastMarchingFilterType; 
+  typedef FastMarchingFilterType::NodeType NodeType;
+  typedef FastMarchingFilterType::NodeContainer  NodeContainer;
   FastMarchingFilterType::Pointer fastMarching = FastMarchingFilterType::New();
+
+  // Transfer image 
+  ImageType::Pointer itkSpeed = speed->to_itk();
+  ImageType::SizeType size = itkSpeed->GetLargestPossibleRegion().GetSize();
+
+  // Initialise the source point
+  ImageType::IndexType  seedidx;
+  seedidx[0] = srcpt.x;
+  seedidx[1] = srcpt.y;
+  seedidx[2] = srcpt.z;
+
+  NodeType node;
+  node.SetValue(0.0);
+  node.SetIndex(seedidx);
+
+  NodeContainer::Pointer seeds = NodeContainer::New();
+  seeds->Initialize();
+  seeds->InsertElement(0, node);
+
+  // Debug 
+  Image3<double>* imgback = new Image3<double>(itkSpeed);
+  imgback->save("imgback.v3draw", true);
+
+  // Create filter and set initial point
+  fastMarching->SetTrialPoints(seeds);
+  fastMarching->SetSpeedConstant(5e-2);
+  fastMarching->SetInput(itkSpeed);
+  fastMarching->SetOutputSize(size);
+  cout<<"Before update"<<endl;
+  fastMarching->Update();
+  cout<<"After update"<<endl;
+  ImageType::Pointer result = fastMarching->GetOutput();
+
+  // Transfer the output back to this->t
+  this->t = new Image3<PixelType>(result);
+  // this->t->save("t.v3draw", true);
+  this->tt = this->t->make_copy();
 }

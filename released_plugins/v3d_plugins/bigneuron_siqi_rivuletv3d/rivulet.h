@@ -14,10 +14,7 @@
 #include "fastmarching/msfm.h"
 #include "utils/marker_radius.h"
 #include "utils/rk4.h"
-
-// Include from ITK
-#include "ITK_include/itkImage.h"
-#include "itkFastMarchingImageFilter.h"
+#include "itkImage.h"
 
 #define max2(a,b) \
  ({ __typeof__ (a) _a = (a); \
@@ -135,7 +132,6 @@ class SWCNode {
   SWCNode() {}
 };
 
-// Image3 is implemented here since templates cannot be compiled
 template <typename T>
 class Image3 {
  private:
@@ -145,6 +141,7 @@ class Image3 {
   bool destroy = true;
 
  public:
+  typedef itk::Image<T, 3> itkImageType;
   void set_destroy(bool destroy) { this->destroy = destroy; }
 
   Image3() {
@@ -168,19 +165,19 @@ class Image3 {
     this->data1d = new T[nvox]();
   }
 
-  Image3(Image3<T> *img) {
-    long *dims = img->get_dims();
-    T *img_1d_ptr = img->get_data1d_ptr();
-    this->data1d = new T[img->size()];
-    this->dims = new long[3];
-    this->dims[0] = dims[0];
-    this->dims[1] = dims[1];
-    this->dims[2] = dims[2];
-    this->nvox = img->size();
-    for (int i = 0; i < this->nvox; i++) {
-      this->data1d[i] = img_1d_ptr[i];
-    }
-  }
+  // Image3(Image3<T> *img) {
+  //   long *dims = img->get_dims();
+  //   T *img_1d_ptr = img->get_data1d_ptr();
+  //   this->data1d = new T[img->size()];
+  //   this->dims = new long[3];
+  //   this->dims[0] = dims[0];
+  //   this->dims[1] = dims[1];
+  //   this->dims[2] = dims[2];
+  //   this->nvox = img->size();
+  //   for (int i = 0; i < this->nvox; i++) {
+  //     this->data1d[i] = img_1d_ptr[i];
+  //   }
+  // }
 
   Image3(T *data1d, long *dims) {
     /*
@@ -205,6 +202,58 @@ class Image3 {
       delete[] this->dims;
       this->dims = NULL;
     }
+  }
+
+  // Image3 copied from itkImage
+  Image3(typename itkImageType::Pointer itk_img_ptr) {
+    this->dims = new long[3];
+    typename itkImageType::SizeType size = itk_img_ptr->GetLargestPossibleRegion().GetSize();
+    this->dims[0] = size[0]; 
+    this->dims[1] = size[1]; 
+    this->dims[2] = size[2]; 
+    this->nvox = dims[0] * dims[1] * dims[2];
+    this->data1d = new T[this->nvox]();
+
+    Point<long> p;
+    for(p.x = 0; p.x<this->dims[0]; p.x++)
+      for (p.y=0; p.y<this->dims[1]; p.y++)
+        for (p.z=0; p.z<this->dims[2]; p.z++) {
+          typename itkImageType::IndexType t_idx;
+          t_idx[0] = p.x; t_idx[1] = p.y; t_idx[2] = p.z;
+          this->set(p, itk_img_ptr->GetPixel(t_idx));
+        }
+  }
+
+  typename itkImageType::Pointer to_itk() {
+    // Make region size
+    typename itkImageType::SizeType size;
+    size[0] = this->dims[0]; size[1] = this->dims[1]; size[2] = this->dims[2];
+
+    // Make start index
+    typename itkImageType::IndexType idx;
+    idx[0] = 0; idx[1] = 0; idx[2] = 0;
+
+    // Make region
+    typename itkImageType::RegionType region;
+    region.SetSize(size);
+    region.SetIndex(idx);
+
+    // Make image
+    typename itkImageType::Pointer I = itkImageType::New();
+    I->SetRegions(region);
+    I->Allocate();
+    I->FillBuffer(0);
+
+    Point<long> p;
+    for(p.x = 0; p.x<this->dims[0]; p.x++)
+      for (p.y=0; p.y<this->dims[1]; p.y++)
+        for (p.z=0; p.z<this->dims[2]; p.z++) {
+          typename itkImageType::IndexType t_idx;
+          t_idx[0] = p.x; t_idx[1] = p.y; t_idx[2] = p.z;
+          I->SetPixel(t_idx, (T) this->get(p));
+        }
+
+    return I;
   }
 
   Image3<T> *make_copy() {
@@ -429,9 +478,10 @@ class R2Tracer {
   float coverage = 0.;
   double *grad = NULL;
   const static float target_coverage = 0.98;
+  bool use_msfm = false;
 
   void prep();  // Distance Transform and MSFM
-  void fast_marching(Image3<double>* dt); // Fast-marching with itk
+  void fast_marching(Image3<double>*, Point<long>); // Fast-marching with itk
   Image3<double>* makespeed(Image3<float> *dt);
   SWC *iterative_backtrack();
   void make_gradient();

@@ -60,6 +60,7 @@ void RivuletPlugin::domenu(const QString &menu_name,
     PARA.threshold = p.threshold;
 
     reconstruction_func(callback, parent, PARA, bmenu);
+    v3d_msg(QString("Now you can drag and drop the generated swc fle [%1] into Vaa3D.").arg(PARA.outswc_file));
 
   } else if (menu_name == tr("about")){
     cout<<"In it"<<endl;
